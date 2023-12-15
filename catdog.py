@@ -21,12 +21,12 @@ import torchvision.transforms as transform
 from torchvision.datasets import ImageFolder
 
 # 데이터셋 불러오기
-train_dir = os.path.join("/content/dogs-vs-cats", "train")
-test_dir = os.path.join("/content/dogs-vs-cats", "test")
+data_dir = os.path.join("./dogs-vs-cats", "train")
+test_dir = os.path.join("./dogs-vs-cats", "test")
 classes = ['cat', 'dog']
 class_info = {idx : os.path.basename(cls) for idx, cls in enumerate(classes)}
 
-img_files = glob(f"{train_dir}/*.jpg")
+img_files = glob(f"{data_dir}/*.jpg")
 dataset = []
 
 for img_file in img_files:
