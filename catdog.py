@@ -81,14 +81,55 @@ class CatDogDataset(Dataset):
   def __init__(self, directory, transform=None):
     self.directory = os.path.abspath(directory)
     self.filelist = glob(self.directory + '/*.jpg')
+
+    assert len(self.filelist) != 0, f"{self.dir_dataset + '/*.jpg'} is empty"  # 경로가 비어있으면
     self.transform = transform
-  
+    self.classes = ['cat', 'dog']
+
   def __len__(self):
     return len(self.filelist)
-  
+
   def __getitem__(self, idx):
+    # 이미지 데이터
     filename = self.filelist[idx]
-    img = self.get_image(filename)
-    label = self.get_label(filename)
+    img = Image.open(filename)
+    img = self.transform(img)
+
+    # 레이블 데이터
+    label = np.array([0] * len(self.classes))
+    for i, c in enumerate(self.classes):
+      if c in os.path.basename(filename):
+        label[i] = 1  # cat이면 [1 0], dog면 [0 1]
+    label = torch.from_numpy(label).type(torch.FloatTensor)
 
     return img, label
+
+train_dataset = CatDogDataset('/content/dogs-vs-cats/train_dataset/', transform=train_transform)
+valid_dataset = CatDogDataset('/content/dogs-vs-cats/valid_dataset/', transform=test_transform)
+test_dataset = CatDogDataset('/content/dogs-vs-cats/test1/', transform=test_transform)
+
+train_dataloader = DataLoader(train_dataset, shuffle=True, num_workers=0, batch_size=batch_size)
+valid_dataloader = DataLoader(valid_dataset, shuffle=False, num_workers=0, batch_size=batch_size)
+test_dataloader = DataLoader(test_dataset, shuffle=False, num_workers=0, batch_size=batch_size)
+
+# 모델 불러오기
+class MobilenetV2(nn.Module):
+  def __init__(self):
+    super().__init__()
+
+    self.model = timm.create_model('mobilenetv2_100', pretrained=True, num_classes=len(classes), global_pool='avg')
+    self.softmax = nn.Softmax(dim=1)
+
+    input = torch.randn(2, 3)
+
+  def forward(self, x):
+    x = self.model(x)
+    x = self.softmax(x)
+
+    return x
+
+model = MobilenetV2().to(device)
+
+# 손실 함수 & 최적화 함수
+criterion = nn.BCELoss()
+optimizer = optim.Adam(model.parameters(), lr=5.5e-5)
