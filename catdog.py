@@ -113,30 +113,21 @@ valid_dataloader = DataLoader(valid_dataset, shuffle=False, num_workers=0, batch
 test_dataloader = DataLoader(test_dataset, shuffle=False, num_workers=0, batch_size=batch_size)
 
 # 모델 불러오기
-class MobilenetV2(nn.Module):
-  def __init__(self):
-    super().__init__()
+model = models.resnet18(pretrained=True)
 
-    self.model = timm.create_model('mobilenetv2_100', pretrained=True, num_classes=len(classes), global_pool='avg')
-    self.softmax = nn.Softmax(dim=1)
+for param in model.parameters():
+  param.requires_grad = False
 
-    input = torch.randn(2, 3)
-
-  def forward(self, x):
-    x = self.model(x)
-    x = self.softmax(x)
-
-    return x
-
-model = MobilenetV2().to(device)
+model.fc = nn.Linear(model.fc.in_features, 2)
+model = model.to(device)
 
 # 손실 함수 & 최적화 함수
-criterion = nn.BCELoss()
+criterion = nn.BCEWithLogitsLoss()  # nn.BCELoss()는 activation function이 sigmoid일 때 써야한다.
 optimizer = optim.Adam(model.parameters(), lr=5.5e-5)
 
-# 학습 루프 (오류 수정중)
-n_epochs = 1
-val_acc_best = 0
+# 학습 루프
+n_epochs = 2
+best_val_acc = 0
 
 save_model_path = "./ckpt/"
 os.makedirs(save_model_path, exist_ok=True)
@@ -149,24 +140,25 @@ for epoch in range(n_epochs):
   for inputs, targets in tqdm(train_dataloader):
     inputs, targets = inputs.to(device), targets.to(device)
 
-    outputs = model(inputs)
-    loss = criterion(outputs, targets)
-    train_losses.append(loss)
 
     optimizer.zero_grad()
+    outputs = model(inputs)
+
+    loss = criterion(outputs, targets)
     loss.backward()
     optimizer.step()
+
+    train_losses.append(loss)
 
   avg_train_loss = sum(train_losses) / len(train_losses)
 
   # Validation
   model.eval()
-  val_losses = []
 
-  # val_accuracy = 0.0
   correct = 0
   total = 0
 
+  val_losses = []
   with torch.no_grad():
     for inputs, targets in valid_dataloader:
       inputs, targets = inputs.to(device), targets.to(device)
@@ -177,10 +169,10 @@ for epoch in range(n_epochs):
 
       _, predicted = outputs.max(1)
       total += targets.size(0)
-      correct += (predicted == targets).sum().item()
+      # correct += (predicted == targets).sum().item()  # targets.shape: (batch_size, num_classes)
+      correct += (predicted == targets.max(1)[1]).sum().item()  # In binary classification, using targets.max(1)[1] is a common approach to get the predicted class indices
 
   avg_val_loss = sum(val_losses) / len(val_losses)
-
   val_acc = correct / total
 
   print(f"Epoch {epoch + 1}/{n_epochs}, Train Loss: {avg_train_loss:.4f}, Validation Loss: {avg_val_loss:.4f}, Validation Accuracy: {val_acc:.2%}")
