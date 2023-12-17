@@ -133,3 +133,58 @@ model = MobilenetV2().to(device)
 # 손실 함수 & 최적화 함수
 criterion = nn.BCELoss()
 optimizer = optim.Adam(model.parameters(), lr=5.5e-5)
+
+# 학습 루프 (오류 수정중)
+n_epochs = 1
+val_acc_best = 0
+
+save_model_path = "./ckpt/"
+os.makedirs(save_model_path, exist_ok=True)
+
+for epoch in range(n_epochs):
+  # Training
+  model.train()
+
+  train_losses = []
+  for inputs, targets in tqdm(train_dataloader):
+    inputs, targets = inputs.to(device), targets.to(device)
+
+    outputs = model(inputs)
+    loss = criterion(outputs, targets)
+    train_losses.append(loss)
+
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+
+  avg_train_loss = sum(train_losses) / len(train_losses)
+
+  # Validation
+  model.eval()
+  val_losses = []
+
+  # val_accuracy = 0.0
+  correct = 0
+  total = 0
+
+  with torch.no_grad():
+    for inputs, targets in valid_dataloader:
+      inputs, targets = inputs.to(device), targets.to(device)
+
+      outputs = model(inputs)
+      loss = criterion(outputs, targets)
+      val_losses.append(loss.item())
+
+      _, predicted = outputs.max(1)
+      total += targets.size(0)
+      correct += (predicted == targets).sum().item()
+
+  avg_val_loss = sum(val_losses) / len(val_losses)
+
+  val_acc = correct / total
+
+  print(f"Epoch {epoch + 1}/{n_epochs}, Train Loss: {avg_train_loss:.4f}, Validation Loss: {avg_val_loss:.4f}, Validation Accuracy: {val_acc:.2%}")
+
+  if val_acc > best_val_acc:
+    best_val_acc = val_acc
+    torch.save(model.state_dict(), os.path.join(save_model_path, 'best_model.pth'))
